@@ -88,18 +88,23 @@ export function createScene(
   // Panels are authored on a 1024 grid; render them at more texels on retina
   // screens so a settled face is supersampled rather than mip-blurred.
   const texSize = dpr >= 2 ? 1536 : 1024;
-  const faceCanvases = drawFaces(texSize, fonts);
+  const faceArt = drawFaces(texSize, fonts);
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
-  for (const slot of Object.keys(faceCanvases).map(Number)) {
-    const t = new THREE.CanvasTexture(faceCanvases[slot]);
+  const panelTexture = (canvas: HTMLCanvasElement) => {
+    const t = new THREE.CanvasTexture(canvas);
     t.colorSpace = THREE.SRGBColorSpace;
     t.anisotropy = maxAniso;
     t.minFilter = THREE.LinearMipmapLinearFilter;
     t.magFilter = THREE.LinearFilter;
     t.generateMipmaps = true;
     t.needsUpdate = true;
-    rig.panels[slot].map = t;
-    rig.panels[slot].emissiveMap = t;
+    return t;
+  };
+  for (const slot of Object.keys(faceArt).map(Number)) {
+    const art = faceArt[slot];
+    const map = panelTexture(art.map);
+    rig.panels[slot].map = map;
+    rig.panels[slot].emissiveMap = art.emissive ? panelTexture(art.emissive) : map;
     rig.panels[slot].needsUpdate = true;
   }
 

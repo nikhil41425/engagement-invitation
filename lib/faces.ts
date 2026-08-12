@@ -307,19 +307,19 @@ class Panel {
   pill() {
     const ctx = this.ctx;
     const U = this.U;
+    // Deep gold, not near-white. A pale pill sails past the bloom threshold and
+    // the dark label inside it disappears into the glare.
     const g = ctx.createLinearGradient(0, PILL.y * U, 0, (PILL.y + PILL.h) * U);
-    g.addColorStop(0, "#fff6e2");
-    g.addColorStop(0.46, "#f4dcac");
-    g.addColorStop(0.54, "#eccf98");
-    g.addColorStop(1, "#d9ab68");
+    g.addColorStop(0, "#f0d69f");
+    g.addColorStop(0.45, "#dcb47e");
+    g.addColorStop(0.55, "#cfa062");
+    g.addColorStop(1, "#a87b3f");
     const x = PILL.x * U;
     const y = PILL.y * U;
     const w = PILL.w * U;
     const h = PILL.h * U;
     const r = PILL.r * U;
     ctx.save();
-    ctx.shadowColor = "rgba(238,201,138,.42)";
-    ctx.shadowBlur = 26 * U;
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -329,8 +329,43 @@ class Panel {
     ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
     ctx.fill();
+    /* a thin bright lip along the top edge gives it form without a halo */
+    ctx.clip();
+    const lip = ctx.createLinearGradient(0, y, 0, y + h * 0.3);
+    lip.addColorStop(0, "rgba(255,246,224,.75)");
+    lip.addColorStop(1, "rgba(255,246,224,0)");
+    ctx.fillStyle = lip;
+    ctx.fillRect(x, y, w, h * 0.3);
     ctx.restore();
-    this.cap(VENUE.cta, PILL.y + PILL.h / 2 + 13, 36, 8, "#1a1105", "600", 0, PILL.w - 96);
+    this.cap(VENUE.cta, PILL.y + PILL.h / 2 + 13, 36, 8, "#150d02", "600", 0, PILL.w - 96);
+  }
+
+  /**
+   * A copy of this panel with the pill blacked out, for use as the emissive map.
+   * The pill is the one element that must not glow: it is a physical button, and
+   * a self-lit one loses the dark label people need to read.
+   */
+  emissiveCopy(): HTMLCanvasElement {
+    const c = document.createElement("canvas");
+    c.width = c.height = this.S;
+    const x = c.getContext("2d")!;
+    x.drawImage(this.canvas, 0, 0);
+    const U = this.U;
+    x.fillStyle = INK;
+    const px = PILL.x * U;
+    const py = PILL.y * U;
+    const w = PILL.w * U;
+    const h = PILL.h * U;
+    const r = PILL.r * U;
+    x.beginPath();
+    x.moveTo(px + r, py);
+    x.arcTo(px + w, py, px + w, py + h, r);
+    x.arcTo(px + w, py + h, px, py + h, r);
+    x.arcTo(px, py + h, px, py, r);
+    x.arcTo(px, py, px + w, py, r);
+    x.closePath();
+    x.fill();
+    return c;
   }
 }
 
@@ -343,9 +378,15 @@ function blankPanel(tex: number, fonts: Fonts) {
   return p.canvas;
 }
 
-/** Draw every panel. Returns canvases indexed by BoxGeometry material slot. */
-export function drawFaces(tex: number, fonts: Fonts): Record<number, HTMLCanvasElement> {
-  const out: Record<number, HTMLCanvasElement> = {};
+export interface PanelArt {
+  map: HTMLCanvasElement;
+  /** used as the emissive map when it must differ from the colour map */
+  emissive?: HTMLCanvasElement;
+}
+
+/** Draw every panel. Returns art indexed by BoxGeometry material slot. */
+export function drawFaces(tex: number, fonts: Fonts): Record<number, PanelArt> {
+  const out: Record<number, PanelArt> = {};
 
   // 1 — Welcome (front). Carries the closing message too, now that the object
   // turns on one axis: it is the face people arrive on and leave on.
@@ -363,7 +404,7 @@ export function drawFaces(tex: number, fonts: Fonts): Record<number, HTMLCanvasE
     p.rule(GRID / 2, 800, 240, 0.4);
     p.cap(EVENT.dateLine, 862, 44, 7, C_GOLD, "400", 12);
     p.edges();
-    out[4] = p.canvas;
+    out[4] = { map: p.canvas };
   }
 
   // 2 — The couple, with their families' blessing (right)
@@ -382,7 +423,7 @@ export function drawFaces(tex: number, fonts: Fonts): Record<number, HTMLCanvasE
     p.body(COUPLE.her.parents, 768, 40, false, 0.9);
     p.rule(GRID / 2, 830, 330, 0.45);
     p.edges();
-    out[0] = p.canvas;
+    out[0] = { map: p.canvas };
   }
 
   // 3 — The date (back): an engraved calendar plate, never an HTML calendar
@@ -399,7 +440,7 @@ export function drawFaces(tex: number, fonts: Fonts): Record<number, HTMLCanvasE
     p.cap(EVENT.weekday, 790, 50, 15, C_WARM, "500", 10);
     p.cap(EVENT.time, 858, 42, 3, "rgba(244,238,228,.94)");
     p.edges();
-    out[5] = p.canvas;
+    out[5] = { map: p.canvas };
   }
 
   // 4 — The venue (left)
@@ -415,11 +456,11 @@ export function drawFaces(tex: number, fonts: Fonts): Record<number, HTMLCanvasE
     p.body(VENUE.address[2], 646, 43);
     p.pill();
     p.edges();
-    out[1] = p.canvas;
+    out[1] = { map: p.canvas, emissive: p.emissiveCopy() };
   }
 
-  out[2] = blankPanel(tex, fonts);
-  out[3] = blankPanel(tex, fonts);
+  out[2] = { map: blankPanel(tex, fonts) };
+  out[3] = { map: blankPanel(tex, fonts) };
 
   return out;
 }
