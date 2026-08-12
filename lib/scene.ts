@@ -150,31 +150,14 @@ export function createScene(
   let lastMoveT = 0;
   let yaw = 0;
   let yawVel = 0;
+  let opening = true;
+  let openT = 0;
   let settled = false;
   let focus = 0;
   let focusTarget = 0;
   let parallax = 0;
   let boost = 0;
   let currentFace = 0;
-
-  // ---- the carousel ----
-  //
-  // Left alone, the object turns clockwise and only clockwise: a quarter turn,
-  // then a pause long enough to read the face it landed on, then the next. Seen
-  // from above, clockwise is decreasing yaw, which is the direction the ring is
-  // authored in — so the faces arrive in the order they were written rather
-  // than backwards. A drag still turns it whichever way the finger goes, and
-  // the carousel picks up again from wherever it was left, still clockwise.
-  const DWELL = 3.4;
-  const TURN = 1.5;
-  /** seconds of stillness after a drag before the object resumes on its own */
-  const RESUME = 4;
-  let autoFrom = 0;
-  let autoTo = 0;
-  let autoT = 0;
-  let turning = false;
-  /** starts at RESUME so the first turn is one DWELL after load, not one RESUME */
-  let idle = RESUME;
 
   const emissive = new Array(6).fill(0.3);
   const emissiveTarget = new Array(6).fill(0.3);
@@ -217,9 +200,7 @@ export function createScene(
       /* capture is best-effort */
     }
     dragging = true;
-    idle = 0;
-    turning = false;
-    autoT = 0;
+    opening = false;
     lastX = e.clientX;
     downT = performance.now();
     lastMoveT = downT;
@@ -344,39 +325,14 @@ export function createScene(
     const dt = Math.min(clock.getDelta(), 0.05);
     time += dt;
 
-    if (dragging) {
-      idle = 0;
-    } else {
-      idle += dt;
-    }
-
-    // The carousel takes over once the object has been left alone, and hands
-    // straight back the moment a finger lands. Reduced motion opts out of it
-    // entirely — a face that turns on its own is exactly what that setting is
-    // asking not to see — and a face held open to read holds the object still.
-    const auto = !dragging && !reduced && focusTarget === 0 && idle >= RESUME;
-
-    if (auto) {
-      autoT += dt;
-      if (turning) {
-        const t = Math.min(1, autoT / TURN);
-        // ease in and out, so each quarter turn starts and lands softly
-        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        yaw = autoFrom + (autoTo - autoFrom) * e;
-        if (t >= 1) {
-          yaw = autoTo;
-          turning = false;
-          autoT = 0;
-        }
-      } else if (autoT >= DWELL) {
-        autoFrom = yaw;
-        // one quarter clockwise from whichever face is square on now
-        autoTo = Math.round(yaw / QUARTER) * QUARTER - QUARTER;
-        turning = true;
-        autoT = 0;
-      }
-      yawVel = 0;
-      settled = !turning;
+    if (opening) {
+      // before the first touch the object turns gently on its own, which shows
+      // its depth and makes the swipe affordance obvious without a caption
+      openT += dt;
+      let ease = Math.min(1, openT / 1.6);
+      ease = 1 - Math.pow(1 - ease, 3);
+      yaw = reduced ? 0.3 : Math.sin(time * 0.62) * 0.349 * ease;
+      settled = false;
     } else if (!dragging) {
       if (Math.abs(yawVel) > 0.0005) {
         yaw += yawVel * dt;
