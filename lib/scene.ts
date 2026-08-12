@@ -362,7 +362,6 @@ export function createScene(
     // turn — it just comes from the room rather than from the object's edges.
     boost += (0 - boost) * (1 - Math.exp(-2.2 * dt));
     const breathe = 0.5 + 0.5 * Math.sin(time * 0.7);
-    rig.goldPoint.intensity = 5.4 + breathe * 2.2 + boost * 5.0;
     stage.bokehMaterial.uniforms.uBoost.value = boost * 0.85;
     rig.moteMaterial.uniforms.uBoost.value = boost;
 

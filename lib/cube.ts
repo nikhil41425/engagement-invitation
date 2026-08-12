@@ -82,7 +82,6 @@ export interface CubeRig {
   motes: THREE.Points;
   moteMaterial: THREE.ShaderMaterial;
   moteHome: Float32Array;
-  goldPoint: THREE.PointLight;
   lights: THREE.Object3D[];
 }
 
@@ -113,18 +112,22 @@ export function createCube(envMap: THREE.Texture, dpr: number): CubeRig {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.98, 1.98, 1.98), panels);
   rotor.add(mesh);
 
-  // hairline armature: 12 rails + 8 corner spheres of matching radius, sitting a
-  // hair proud of the panel so the frame reads as a real edge
+  // Hairline armature: 12 rails + 8 corner spheres of matching radius, sitting a
+  // hair proud of the panel so the frame reads as a real edge.
+  //
+  // It emits nothing. It used to carry its own emissive term and a point lamp
+  // aimed squarely at it, which made the border the brightest thing in the
+  // frame — bright enough to cross the bloom threshold and wash the backdrop
+  // warm. It is plain metal now: rougher, so it gives a broad sheen instead of
+  // a mirror-hot line, and lit only by the room.
   const RAIL_R = 0.027;
   const HALF = 1.0;
   const gold = new THREE.MeshStandardMaterial({
-    color: 0xffdca4,
+    color: 0xc9a878,
     metalness: 1.0,
-    roughness: 0.16,
-    emissive: 0x3a2707,
-    emissiveIntensity: 0.34,
+    roughness: 0.34,
     envMap,
-    envMapIntensity: 2.3,
+    envMapIntensity: 1.0,
   });
   const railGeo = new THREE.CylinderGeometry(RAIL_R, RAIL_R, HALF * 2, 18, 1, false);
   const cornerGeo = new THREE.SphereGeometry(RAIL_R, 20, 14);
@@ -178,12 +181,13 @@ export function createCube(envMap: THREE.Texture, dpr: number): CubeRig {
 
   // The panels carry their own light through the emissive map, so the lamps are
   // kept low: they exist to model the gold armature, not to wash the ink panels.
+  //
+  // The point lamp that used to sit off the front-right corner is gone with the
+  // border lighting — its only job was to put a hot specular line down the rails.
   const key = new THREE.DirectionalLight(0xffe6c2, 0.85);
   key.position.set(3.4, 4.2, 4.0);
   const rim = new THREE.DirectionalLight(0x7fa0ff, 0.62);
   rim.position.set(-4.2, 1.4, -3.6);
-  const goldPoint = new THREE.PointLight(0xffcd82, 7.0, 20, 2);
-  goldPoint.position.set(2.4, 2.8, 4.2);
   const fill = new THREE.PointLight(0xd06bb0, 5.0, 16, 2);
   fill.position.set(-1.2, -3.2, 1.4);
   const amb = new THREE.AmbientLight(0x6a648c, 0.42);
@@ -196,8 +200,7 @@ export function createCube(envMap: THREE.Texture, dpr: number): CubeRig {
     motes,
     moteMaterial,
     moteHome,
-    goldPoint,
-    lights: [key, rim, goldPoint, fill, amb],
+    lights: [key, rim, fill, amb],
   };
 }
 

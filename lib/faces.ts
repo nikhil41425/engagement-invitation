@@ -187,7 +187,15 @@ class Panel {
     ctx.fillRect(0, 0, S, S);
   }
 
-  /** machined edge: bright chamfer at the physical edge, falling to a dark reveal */
+  /**
+   * Machined edge: a chamfer at the physical edge, falling to a dark reveal.
+   *
+   * This canvas is its own emissive map, so whatever is brightest here is a
+   * light source on the object. The chamfer used to open on near-white at .92
+   * and that made a lit strip around all four sides of every face — the border
+   * lighting, baked in. It opens on dull brass now: the edge still catches the
+   * eye as a machined bevel, but it is reflecting the room rather than emitting.
+   */
   edges() {
     const ctx = this.ctx;
     const S = this.S;
@@ -200,11 +208,11 @@ class Panel {
     ];
     for (const s of sides) {
       const g = ctx.createLinearGradient(s[4], s[5], s[6], s[7]);
-      g.addColorStop(0.0, "rgba(255,247,228,.92)");
-      g.addColorStop(0.05, "rgba(228,190,130,.66)");
-      g.addColorStop(0.14, "rgba(146,108,60,.44)");
-      g.addColorStop(0.34, "rgba(74,54,32,.30)");
-      g.addColorStop(0.58, "rgba(120,90,52,.22)");
+      g.addColorStop(0.0, "rgba(148,122,84,.44)");
+      g.addColorStop(0.05, "rgba(122,98,66,.34)");
+      g.addColorStop(0.14, "rgba(88,66,40,.28)");
+      g.addColorStop(0.34, "rgba(56,40,25,.26)");
+      g.addColorStop(0.58, "rgba(72,55,33,.19)");
       g.addColorStop(0.8, "rgba(34,25,18,.22)");
       g.addColorStop(0.93, "rgba(10,8,16,.60)");
       g.addColorStop(1.0, "rgba(8,6,14,.20)");
