@@ -315,13 +315,17 @@ class Panel {
   pill() {
     const ctx = this.ctx;
     const U = this.U;
-    // Deep gold, not near-white. A pale pill sails past the bloom threshold and
-    // the dark label inside it disappears into the glare.
+    // The pill is real geometry, lit by the stage rather than self-glowing (a
+    // physical button that glows loses its own label to the glare) — so unlike
+    // everything else on this panel, how it reads depends on how much light is
+    // actually falling on this face. Pulled noticeably brighter than the panel
+    // ink can afford to, plus a dark outer stroke, so it still separates from
+    // the panel at the low end of that range instead of only at the high end.
     const g = ctx.createLinearGradient(0, PILL.y * U, 0, (PILL.y + PILL.h) * U);
-    g.addColorStop(0, "#f0d69f");
-    g.addColorStop(0.45, "#dcb47e");
-    g.addColorStop(0.55, "#cfa062");
-    g.addColorStop(1, "#a87b3f");
+    g.addColorStop(0, "#fce8c0");
+    g.addColorStop(0.45, "#f0cd8e");
+    g.addColorStop(0.55, "#e2b473");
+    g.addColorStop(1, "#bd9256");
     const x = PILL.x * U;
     const y = PILL.y * U;
     const w = PILL.w * U;
@@ -338,12 +342,18 @@ class Panel {
     ctx.closePath();
     ctx.fill();
     /* a thin bright lip along the top edge gives it form without a halo */
+    ctx.save();
     ctx.clip();
     const lip = ctx.createLinearGradient(0, y, 0, y + h * 0.3);
-    lip.addColorStop(0, "rgba(255,246,224,.75)");
-    lip.addColorStop(1, "rgba(255,246,224,0)");
+    lip.addColorStop(0, "rgba(255,250,232,.82)");
+    lip.addColorStop(1, "rgba(255,250,232,0)");
     ctx.fillStyle = lip;
     ctx.fillRect(x, y, w, h * 0.3);
+    ctx.restore();
+    /* a dark outer edge, so the shape reads against the panel at any light level */
+    ctx.lineWidth = 2.4 * U;
+    ctx.strokeStyle = "rgba(18,11,4,.55)";
+    ctx.stroke();
     ctx.restore();
     this.cap(VENUE.cta, PILL.y + PILL.h / 2 + 13, 36, 8, "#150d02", "600", 0, PILL.w - 96);
   }
@@ -360,11 +370,16 @@ class Panel {
     x.drawImage(this.canvas, 0, 0);
     const U = this.U;
     x.fillStyle = INK;
-    const px = PILL.x * U;
-    const py = PILL.y * U;
-    const w = PILL.w * U;
-    const h = PILL.h * U;
-    const r = PILL.r * U;
+    // Padded half a stroke width beyond the pill's own path: pill() strokes a
+    // dark outer edge centred on that same path, and this blackout has to
+    // cover both sides of it or the outer half glows — a halo on the one
+    // element the panel exists to keep dark.
+    const pad = 1.5 * U;
+    const px = PILL.x * U - pad;
+    const py = PILL.y * U - pad;
+    const w = PILL.w * U + pad * 2;
+    const h = PILL.h * U + pad * 2;
+    const r = PILL.r * U + pad;
     x.beginPath();
     x.moveTo(px + r, py);
     x.arcTo(px + w, py, px + w, py + h, r);
