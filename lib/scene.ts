@@ -356,13 +356,13 @@ export function createScene(
     focus += (focusTarget - focus) * (1 - Math.exp(-6 * dt));
     rig.group.position.z = focus * camDist * 0.13;
 
+    // The pulse on each face change used to be spent on the object's own glow
+    // shells. It is spent on the stage now: the pool the plinth stands in and
+    // the spill toward the viewer both lift, so the light still answers the
+    // turn — it just comes from the room rather than from the object's edges.
     boost += (0 - boost) * (1 - Math.exp(-2.2 * dt));
     const breathe = 0.5 + 0.5 * Math.sin(time * 0.7);
-    (rig.glowBox.material as THREE.MeshBasicMaterial).opacity =
-      0.055 + breathe * 0.03 + boost * 0.07;
-    rig.halo.material.opacity = 0.5 + breathe * 0.12 + boost * 0.26;
-    rig.halo.scale.setScalar(8.2 + breathe * 0.35 + boost * 0.9);
-    rig.goldPoint.intensity = 5.0 + breathe * 2.0 + boost * 4.2;
+    rig.goldPoint.intensity = 5.4 + breathe * 2.2 + boost * 5.0;
     stage.bokehMaterial.uniforms.uBoost.value = boost * 0.85;
     rig.moteMaterial.uniforms.uBoost.value = boost;
 
@@ -390,7 +390,9 @@ export function createScene(
     parallax *= Math.pow(0.9, dt * 60);
     stage.group.position.x = parallax * 1.4;
     (stage.glowPool.material as THREE.MeshBasicMaterial).opacity =
-      0.72 + breathe * 0.16 + boost * 0.3;
+      0.78 + breathe * 0.18 + boost * 0.46;
+    (stage.smear.material as THREE.MeshBasicMaterial).opacity =
+      0.82 + breathe * 0.14 + boost * 0.38;
 
     if (stage.bokeh.visible) {
       const pa = stage.bokeh.geometry.getAttribute("position") as THREE.BufferAttribute;

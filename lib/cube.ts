@@ -1,10 +1,15 @@
 /**
- * The object itself: lacquered panels, a hairline gold armature, its bevel glow
- * and halo, the shell of gold motes, and the lamps that model the metal.
+ * The object itself: lacquered panels, a hairline gold armature, the shell of
+ * gold motes, and the lamps that model the metal.
+ *
+ * The object carries no glow of its own. It used to wear an additive bevel box
+ * and a halo sprite, and both were doing the stage's job from the wrong place:
+ * each covered the whole frame in a blended layer, and the separation they gave
+ * the silhouette now comes from the pool of light behind the plinth instead.
  */
 
 import * as THREE from "three";
-import { buildPoints, pointMaterial, radialTexture } from "./particles";
+import { buildPoints, pointMaterial } from "./particles";
 
 /**
  * A small studio, rendered to six canvases and pre-filtered with PMREM so the
@@ -74,8 +79,6 @@ export interface CubeRig {
   rotor: THREE.Group;
   mesh: THREE.Mesh;
   panels: THREE.MeshPhysicalMaterial[];
-  glowBox: THREE.Mesh;
-  halo: THREE.Sprite;
   motes: THREE.Points;
   moteMaterial: THREE.ShaderMaterial;
   moteHome: Float32Array;
@@ -151,37 +154,6 @@ export function createCube(envMap: THREE.Texture, dpr: number): CubeRig {
         rotor.add(corner);
       }
 
-  const glowBox = new THREE.Mesh(
-    new THREE.BoxGeometry(2.12, 2.12, 2.12),
-    new THREE.MeshBasicMaterial({
-      color: 0xd9b6ff,
-      side: THREE.BackSide,
-      transparent: true,
-      opacity: 0.075,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    })
-  );
-  rotor.add(glowBox);
-
-  const halo = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: radialTexture(256, [
-        [0, "rgba(255,226,178,.55)"],
-        [0.34, "rgba(210,140,90,.22)"],
-        [0.7, "rgba(120,60,110,.08)"],
-        [1, "rgba(60,30,80,0)"],
-      ]),
-      blending: THREE.AdditiveBlending,
-      transparent: true,
-      depthWrite: false,
-      opacity: 0.62,
-    })
-  );
-  halo.scale.set(8.4, 8.4, 1);
-  halo.position.z = -1.7;
-  group.add(halo);
-
   const moteMaterial = pointMaterial(3.0, dpr, 1.0, true);
   const motes = buildPoints(
     170,
@@ -221,8 +193,6 @@ export function createCube(envMap: THREE.Texture, dpr: number): CubeRig {
     rotor,
     mesh,
     panels,
-    glowBox,
-    halo,
     motes,
     moteMaterial,
     moteHome,
