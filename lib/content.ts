@@ -40,19 +40,28 @@ export const MESSAGE = {
   signature: "Nikhil & Sravanthi",
 } as const;
 
-/** Chapter order as the invitation reads; `slot` is the BoxGeometry material index.
- *  Box slots: 0 +X right, 1 -X left, 2 +Y top, 3 -Y bottom, 4 +Z front, 5 -Z back.
- *  This mapping puts the horizontal ring at Welcome → Couple → Date → Venue. */
+/**
+ * The object turns on its vertical axis only, so it presents four faces — the
+ * four sides of the ring. Nothing is dropped to fit: the couple and families
+ * chapters always carried the same names and parents, so they are one panel,
+ * and the closing message joins the welcome face it belongs with.
+ *
+ * `slot` is the BoxGeometry material index: 0 +X right, 1 -X left, 2 +Y top,
+ * 3 -Y bottom, 4 +Z front, 5 -Z back. Swiping left runs the ring forward.
+ */
 export const FACE_ORDER = [
   { key: "welcome", slot: 4, title: "WELCOME" },
-  { key: "couple", slot: 0, title: "THE COUPLE" },
+  { key: "couple", slot: 0, title: "OUR FAMILIES" },
   { key: "date", slot: 5, title: "SAVE THE DATE" },
-  { key: "families", slot: 2, title: "OUR FAMILIES" },
   { key: "venue", slot: 1, title: "THE VENUE" },
-  { key: "message", slot: 3, title: "A NEW CHAPTER" },
 ] as const;
 
+/** slots reached by a quarter turn each, in ring order from the front */
+export const RING_SLOTS = [4, 0, 5, 1] as const;
+/** the lid and the base are never turned toward the viewer */
+export const BLANK_SLOTS = [2, 3] as const;
+
 export const VENUE_SLOT = 1;
-export const MESSAGE_FACE_INDEX = 5;
+export const MESSAGE_FACE_INDEX = 0;
 
 export type FaceKey = (typeof FACE_ORDER)[number]["key"];

@@ -4,7 +4,7 @@
  */
 
 import * as THREE from "three";
-import { buildPoints, pointMaterial, radialTexture } from "./starfield";
+import { buildPoints, pointMaterial, radialTexture } from "./particles";
 
 /**
  * A small studio, rendered to six canvases and pre-filtered with PMREM so the

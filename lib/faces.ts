@@ -334,44 +334,58 @@ class Panel {
   }
 }
 
-/** Draw all six panels. Returns canvases indexed by BoxGeometry material slot. */
+/** A plain panel for the lid and the base, which never face the viewer. */
+function blankPanel(tex: number, fonts: Fonts) {
+  const p = new Panel(tex, fonts);
+  p.base("violet", 512, 380, 380);
+  p.ornament(GRID / 2, 512, 260);
+  p.edges();
+  return p.canvas;
+}
+
+/** Draw every panel. Returns canvases indexed by BoxGeometry material slot. */
 export function drawFaces(tex: number, fonts: Fonts): Record<number, HTMLCanvasElement> {
   const out: Record<number, HTMLCanvasElement> = {};
 
-  // 1 — Welcome (front)
+  // 1 — Welcome (front). Carries the closing message too, now that the object
+  // turns on one axis: it is the face people arrive on and leave on.
   {
     const p = new Panel(tex, fonts);
-    p.base("wine", 452, 430, 340);
-    p.ornament(GRID / 2, 250, 300);
-    p.name(COUPLE.him.name.toUpperCase(), 392, 116, 12);
-    p.script("&", 470, 62, "rgba(238,201,138,.82)", 10);
-    p.name(COUPLE.her.name.toUpperCase(), 570, 116, 12);
-    p.rule(GRID / 2, 632, 300, 0.45);
-    p.title(EVENT.kind, 700);
-    p.body("Swipe to explore", 772, 42, false, 0.66);
-    p.cap(EVENT.dateLine, 856, 46, 7, C_GOLD, "400", 12);
+    p.base("wine", 448, 430, 350);
+    p.ornament(GRID / 2, 218, 300);
+    p.name(COUPLE.him.name.toUpperCase(), 350, 104, 11);
+    p.script("&", 420, 56, "rgba(238,201,138,.82)", 10);
+    p.name(COUPLE.her.name.toUpperCase(), 508, 104, 11);
+    p.rule(GRID / 2, 562, 300, 0.45);
+    p.title(EVENT.kind, 622);
+    p.body(MESSAGE.lines[0], 700, 40, true, 0.93);
+    p.body(MESSAGE.lines[1], 750, 40, true, 0.93);
+    p.rule(GRID / 2, 800, 240, 0.4);
+    p.cap(EVENT.dateLine, 862, 44, 7, C_GOLD, "400", 12);
     p.edges();
     out[4] = p.canvas;
   }
 
-  // 2 — The Couple (right)
+  // 2 — The couple, with their families' blessing (right)
   {
     const p = new Panel(tex, fonts);
-    p.base("violet", 512, 420, 350);
-    p.title("THE COUPLE", 244);
-    p.name(COUPLE.him.name, 384, 92, 5, "500");
-    p.body(COUPLE.him.parents, 450, 42, false, 0.9);
-    p.rule(322, 534, 210, 0.38);
-    p.rule(702, 534, 210, 0.38);
-    p.script("&", 556, 66, "rgba(238,201,138,.84)", 10);
-    p.name(COUPLE.her.name, 672, 92, 5, "500");
-    p.body(COUPLE.her.parents, 738, 42, false, 0.9);
-    p.sparkle(GRID / 2, 832, 24, 0.9);
+    p.base("plum", 512, 420, 360);
+    p.title("WITH THE BLESSINGS", 236);
+    p.title("OF OUR FAMILIES", 296);
+    p.rule(GRID / 2, 348, 330, 0.45);
+    p.name(COUPLE.him.name, 452, 86, 5, "500");
+    p.body(COUPLE.him.parents, 514, 40, false, 0.9);
+    p.rule(316, 592, 200, 0.36);
+    p.rule(708, 592, 200, 0.36);
+    p.script("and", 606, 46, "rgba(238,201,138,.82)");
+    p.name(COUPLE.her.name, 706, 86, 5, "500");
+    p.body(COUPLE.her.parents, 768, 40, false, 0.9);
+    p.rule(GRID / 2, 830, 330, 0.45);
     p.edges();
     out[0] = p.canvas;
   }
 
-  // 3 — The Date (back): an engraved calendar plate, never an HTML calendar
+  // 3 — The date (back): an engraved calendar plate, never an HTML calendar
   {
     const p = new Panel(tex, fonts);
     p.base("indigo", 476, 420, 360);
@@ -388,26 +402,7 @@ export function drawFaces(tex: number, fonts: Fonts): Record<number, HTMLCanvasE
     out[5] = p.canvas;
   }
 
-  // 4 — The Families (top)
-  {
-    const p = new Panel(tex, fonts);
-    p.base("plum", 512, 420, 360);
-    p.title("WITH THE BLESSINGS", 236);
-    p.title("OF OUR FAMILIES", 296);
-    p.rule(GRID / 2, 348, 330, 0.45);
-    p.name(COUPLE.him.name, 452, 86, 5, "500");
-    p.body(COUPLE.him.parents, 514, 40, false, 0.9);
-    p.rule(316, 592, 200, 0.36);
-    p.rule(708, 592, 200, 0.36);
-    p.script("and", 606, 46, "rgba(238,201,138,.82)");
-    p.name(COUPLE.her.name, 706, 86, 5, "500");
-    p.body(COUPLE.her.parents, 768, 40, false, 0.9);
-    p.rule(GRID / 2, 830, 330, 0.45);
-    p.edges();
-    out[2] = p.canvas;
-  }
-
-  // 5 — The Venue (left)
+  // 4 — The venue (left)
   {
     const p = new Panel(tex, fonts);
     p.base("indigo", 486, 430, 360);
@@ -423,28 +418,8 @@ export function drawFaces(tex: number, fonts: Fonts): Record<number, HTMLCanvasE
     out[1] = p.canvas;
   }
 
-  // 6 — The Message (bottom)
-  {
-    const p = new Panel(tex, fonts);
-    p.base("wine", 470, 430, 350);
-    p.title(MESSAGE.heading, 240);
-    const sp: [number, number, number][] = [
-      [198, 356, 11],
-      [842, 396, 9],
-      [166, 560, 7],
-      [870, 590, 8],
-      [236, 852, 9],
-      [802, 866, 11],
-    ];
-    for (const s of sp) p.sparkle(s[0], s[1], s[2], 0.6);
-    p.body(MESSAGE.lines[0], 432, 47, true, 0.95);
-    p.body(MESSAGE.lines[1], 494, 47, true, 0.95);
-    p.rule(GRID / 2, 576, 300, 0.45);
-    p.name(MESSAGE.signature, 676, 74, 4, "500");
-    p.cap(EVENT.dateLine, 774, 44, 7, C_GOLD, "400", 12);
-    p.edges();
-    out[3] = p.canvas;
-  }
+  out[2] = blankPanel(tex, fonts);
+  out[3] = blankPanel(tex, fonts);
 
   return out;
 }

@@ -1,7 +1,7 @@
 import { COUPLE, DIRECTIONS_URL, EVENT, MESSAGE, VENUE } from "@/lib/content";
 
 /**
- * No WebGL: six stacked cards with the identical content and a real anchor for
+ * No WebGL: the same four chapters as stacked cards with the identical content and a real anchor for
  * directions. Never an error message.
  */
 export default function Fallback() {
@@ -17,16 +17,30 @@ export default function Fallback() {
           <div className="nm">{COUPLE.her.name.toUpperCase()}</div>
           <hr />
           <h2 style={{ margin: "16px 0 10px" }}>{EVENT.kind}</h2>
-          <p className="sub">Swipe to explore</p>
+          <p>
+            <em>
+              {MESSAGE.lines[0]}
+              <br />
+              {MESSAGE.lines[1]}
+            </em>
+          </p>
           <p className="sub" style={{ marginTop: 14, letterSpacing: "0.24em" }}>
             {EVENT.dateLine}
           </p>
         </div>
 
         <div className="card">
-          <h2>THE COUPLE</h2>
+          <h2>
+            WITH THE BLESSINGS
+            <br />
+            OF OUR FAMILIES
+          </h2>
           <div className="nm">{COUPLE.him.name}</div>
           <p className="sub">{COUPLE.him.parents}</p>
+          <hr />
+          <p className="sub">
+            <em>and</em>
+          </p>
           <hr />
           <div className="nm">{COUPLE.her.name}</div>
           <p className="sub">{COUPLE.her.parents}</p>
@@ -49,23 +63,6 @@ export default function Fallback() {
         </div>
 
         <div className="card">
-          <h2>
-            WITH THE BLESSINGS
-            <br />
-            OF OUR FAMILIES
-          </h2>
-          <div className="nm">{COUPLE.him.name}</div>
-          <p className="sub">{COUPLE.him.parents}</p>
-          <hr />
-          <p className="sub">
-            <em>and</em>
-          </p>
-          <hr />
-          <div className="nm">{COUPLE.her.name}</div>
-          <p className="sub">{COUPLE.her.parents}</p>
-        </div>
-
-        <div className="card">
           <h2>THE VENUE</h2>
           <div className="nm" style={{ fontSize: 22 }}>
             {VENUE.name}
@@ -84,24 +81,6 @@ export default function Fallback() {
           <a className="pill" id="fbdir" href={DIRECTIONS_URL} target="_blank" rel="noopener noreferrer">
             {VENUE.cta}
           </a>
-        </div>
-
-        <div className="card">
-          <h2>{MESSAGE.heading}</h2>
-          <p>
-            <em>
-              {MESSAGE.lines[0]}
-              <br />
-              {MESSAGE.lines[1]}
-            </em>
-          </p>
-          <hr />
-          <div className="nm" style={{ fontSize: 22 }}>
-            {MESSAGE.signature}
-          </div>
-          <p className="sub" style={{ marginTop: 10, letterSpacing: "0.24em" }}>
-            {EVENT.dateLine}
-          </p>
         </div>
       </div>
     </div>

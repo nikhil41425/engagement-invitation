@@ -14,9 +14,9 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 
 import { FACE_ORDER, MESSAGE_FACE_INDEX, VENUE_SLOT } from "./content";
-import { LOCAL_NORMALS, axisAlignedOrientations, createCube, createStudioEnvironment } from "./cube";
+import { createCube, createStudioEnvironment } from "./cube";
 import { PILL_UV, drawFaces, type Fonts } from "./faces";
-import { createStarfield } from "./starfield";
+import { PLINTH_TOP, createStage } from "./stage";
 import { Ambience } from "./sound";
 
 export interface SceneHandle {
@@ -32,14 +32,18 @@ export interface SceneCallbacks {
   onFirstInteraction(): void;
 }
 
-const SLOT_TO_FACE: number[] = [];
-FACE_ORDER.forEach((f, i) => (SLOT_TO_FACE[f.slot] = i));
-
 const CUBE_DIAMETER = 2.92;
 const RAD_PER_PX = 0.0082;
 const MAX_V = 5.5;
-const WORLD_Y = new THREE.Vector3(0, 1, 0);
-const WORLD_X = new THREE.Vector3(1, 0, 0);
+const QUARTER = Math.PI / 2;
+
+/** The object turns on its vertical axis only, so its orientation is one angle
+ *  rather than a quaternion: it can never end up tilted, and the settle is a
+ *  snap to the nearest quarter turn. Face n sits at yaw = -n * 90 degrees. */
+function faceFromYaw(yaw: number) {
+  const n = Math.round(-yaw / QUARTER) % FACE_ORDER.length;
+  return (n + FACE_ORDER.length) % FACE_ORDER.length;
+}
 
 export function createScene(
   canvas: HTMLCanvasElement,
@@ -72,11 +76,13 @@ export function createScene(
   camera.position.set(0, 0, 6);
 
   // ---- world ----
-  const sky = createStarfield(dpr, reduced);
-  scene.add(sky.galaxy, sky.stars);
-
   const envMap = createStudioEnvironment(renderer);
+  const stage = createStage(dpr, reduced, envMap);
+  scene.add(stage.group, ...stage.lights);
+
   const rig = createCube(envMap, dpr);
+  const REST_Y = PLINTH_TOP + 1.02;
+  rig.group.position.y = REST_Y;
   scene.add(rig.group, ...rig.lights);
 
   // Panels are authored on a 1024 grid; render them at more texels on retina
@@ -120,7 +126,9 @@ export function createScene(
     composer.setSize(w, h);
     camera.aspect = w / h;
     const vhalf = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-    const distH = CUBE_DIAMETER / 0.72 / 2 / vhalf;
+    // the composition is the object plus the plinth it stands on, so the height
+    // it has to clear is taller than the object's own rotational diameter
+    const distH = (CUBE_DIAMETER + 1.35) / 0.88 / 2 / vhalf;
     const distW = CUBE_DIAMETER / 0.94 / 2 / (vhalf * camera.aspect);
     camDist = Math.max(distH, distW);
     camera.updateProjectionMatrix();
@@ -129,27 +137,20 @@ export function createScene(
   window.addEventListener("resize", layout);
 
   // ---- interaction state ----
-  const ORIENTS = axisAlignedOrientations();
-  const qTmp = new THREE.Quaternion();
-  const worldQ = new THREE.Quaternion();
-  const nTmp = new THREE.Vector3();
-
   let dragging = false;
   let pointerId: number | null = null;
   let lastX = 0;
-  let lastY = 0;
   let moved = 0;
   let downT = 0;
   let lastMoveT = 0;
-  let velY = 0;
-  let velX = 0;
+  let yaw = 0;
+  let yawVel = 0;
   let opening = true;
   let openT = 0;
   let settled = false;
   let focus = 0;
   let focusTarget = 0;
-  let parallaxX = 0;
-  let parallaxY = 0;
+  let parallax = 0;
   let boost = 0;
   let currentFace = 0;
 
@@ -158,33 +159,6 @@ export function createScene(
   emissiveTarget[FACE_ORDER[0].slot] = 0.62;
 
   const sound = new Ambience();
-
-  function nearestOrientation(q: THREE.Quaternion) {
-    let best = ORIENTS[0];
-    let bestDot = -1;
-    for (const o of ORIENTS) {
-      const d = Math.abs(q.dot(o));
-      if (d > bestDot) {
-        bestDot = d;
-        best = o;
-      }
-    }
-    return best;
-  }
-
-  function activeSlot() {
-    worldQ.copy(rig.group.quaternion).multiply(rig.rotor.quaternion);
-    let best = 4;
-    let bestZ = -2;
-    for (let i = 0; i < 6; i++) {
-      nTmp.copy(LOCAL_NORMALS[i]).applyQuaternion(worldQ);
-      if (nTmp.z > bestZ) {
-        bestZ = nTmp.z;
-        best = i;
-      }
-    }
-    return best;
-  }
 
   function setActiveFace(index: number) {
     if (index === currentFace) return;
@@ -223,46 +197,36 @@ export function createScene(
     dragging = true;
     opening = false;
     lastX = e.clientX;
-    lastY = e.clientY;
     downT = performance.now();
     lastMoveT = downT;
     moved = 0;
-    velY = velX = 0;
+    yawVel = 0;
     cb.onFirstInteraction();
   }
 
   function onMove(e: PointerEvent) {
     if (!dragging || e.pointerId !== pointerId) return;
     const dx = e.clientX - lastX;
-    const dy = e.clientY - lastY;
     lastX = e.clientX;
-    lastY = e.clientY;
-    moved += Math.abs(dx) + Math.abs(dy);
+    moved += Math.abs(dx);
 
     if (moved > 12 && focusTarget > 0) {
       focusTarget = 0;
       cb.onFocusChange(false);
     }
 
-    // rotate in world space so the gesture always matches the finger, whatever
-    // the current orientation — driving Euler angles rolls the cube sideways
-    qTmp.setFromAxisAngle(WORLD_Y, dx * RAD_PER_PX);
-    rig.rotor.quaternion.premultiply(qTmp);
-    qTmp.setFromAxisAngle(WORLD_X, dy * RAD_PER_PX);
-    rig.rotor.quaternion.premultiply(qTmp);
-    rig.rotor.quaternion.normalize();
+    // one axis: the object turns with the finger and stays upright throughout
+    yaw += dx * RAD_PER_PX;
 
     const now = performance.now();
     const dt = Math.max(1 / 240, (now - lastMoveT) / 1000);
     lastMoveT = now;
-    velY = THREE.MathUtils.clamp((dx * RAD_PER_PX) / dt, -MAX_V, MAX_V);
-    velX = THREE.MathUtils.clamp((dy * RAD_PER_PX) / dt, -MAX_V, MAX_V);
+    yawVel = THREE.MathUtils.clamp((dx * RAD_PER_PX) / dt, -MAX_V, MAX_V);
 
-    parallaxX += dx * 0.0016;
-    parallaxY += dy * 0.0016;
+    parallax += dx * 0.0016;
     settled = false;
 
-    if (Math.abs(dx) + Math.abs(dy) > 6) sound.sweep();
+    if (Math.abs(dx) > 6) sound.sweep();
   }
 
   function onUp(e: PointerEvent) {
@@ -277,7 +241,7 @@ export function createScene(
 
     if (moved < 14 && performance.now() - downT < 420) {
       if (hitPill(e)) {
-        velY = velX = 0;
+        yawVel = 0;
         window.open(
           // the one link in the piece, used exactly as given
           "https://share.google/u1rHnw8wfH0q3O7x1",
@@ -316,7 +280,7 @@ export function createScene(
   function setPixelRatio(value: number) {
     dpr = value;
     renderer.setPixelRatio(dpr);
-    sky.material.uniforms.uSize.value = 3.2 * dpr;
+    stage.bokehMaterial.uniforms.uSize.value = 3.0 * dpr;
     rig.moteMaterial.uniforms.uSize.value = 3.0 * dpr;
     layout();
   }
@@ -330,8 +294,7 @@ export function createScene(
       // the composer needs its clear colour in linear space; the direct path does not
       renderer.setClearColor(usePost ? CLEAR_LINEAR : CLEAR, 1);
     }
-    sky.dust.visible = level < 2;
-    sky.nearStars.visible = level < 2;
+    stage.bokeh.visible = level < 2;
     rig.motes.visible = level < 2;
     const wantDpr = level >= 3 ? Math.min(FULL_DPR, 1.5) : FULL_DPR;
     if (wantDpr !== dpr) setPixelRatio(wantDpr);
@@ -358,42 +321,32 @@ export function createScene(
     time += dt;
 
     if (opening) {
-      // before the first touch the cube turns gently on its own: this shows the
-      // object's depth and makes the swipe affordance obvious without a caption
+      // before the first touch the object turns gently on its own, which shows
+      // its depth and makes the swipe affordance obvious without a caption
       openT += dt;
       let ease = Math.min(1, openT / 1.6);
       ease = 1 - Math.pow(1 - ease, 3);
-      if (reduced) eOpen.set(-0.1, 0.3, 0);
-      else eOpen.set(-0.13 * ease, Math.sin(time * 0.62) * 0.349 * ease, 0);
-      qOpen.setFromEuler(eOpen);
-      rig.rotor.quaternion.copy(qOpen);
+      yaw = reduced ? 0.3 : Math.sin(time * 0.62) * 0.349 * ease;
       settled = false;
     } else if (!dragging) {
-      if (Math.abs(velY) > 0.0005 || Math.abs(velX) > 0.0005) {
-        qTmp.setFromAxisAngle(WORLD_Y, velY * dt);
-        rig.rotor.quaternion.premultiply(qTmp);
-        qTmp.setFromAxisAngle(WORLD_X, velX * dt);
-        rig.rotor.quaternion.premultiply(qTmp);
-        rig.rotor.quaternion.normalize();
-        const damp = Math.pow(0.955, dt * 60);
-        velY *= damp;
-        velX *= damp;
+      if (Math.abs(yawVel) > 0.0005) {
+        yaw += yawVel * dt;
+        yawVel *= Math.pow(0.955, dt * 60);
       }
-      if (Math.abs(velY) < 0.35 && Math.abs(velX) < 0.35) {
-        const target = nearestOrientation(rig.rotor.quaternion);
-        rig.rotor.quaternion.slerp(target, 1 - Math.exp(-(reduced ? 14 : 8.5) * dt));
-        velY *= 0.7;
-        velX *= 0.7;
-        settled = Math.abs(rig.rotor.quaternion.dot(target)) > 0.9995;
+      if (Math.abs(yawVel) < 0.35) {
+        // settle on the nearest quarter turn, so a face is always square on
+        const target = Math.round(yaw / QUARTER) * QUARTER;
+        yaw += (target - yaw) * (1 - Math.exp(-(reduced ? 14 : 8.5) * dt));
+        yawVel *= 0.7;
+        settled = Math.abs(target - yaw) < 0.002;
       }
     }
+    rig.rotor.rotation.y = yaw;
 
-    setActiveFace(SLOT_TO_FACE[activeSlot()]);
+    setActiveFace(faceFromYaw(yaw));
 
     const fl = reduced ? 0 : 1;
-    rig.group.position.y = Math.sin(time * 0.5) * 0.075 * fl;
-    rig.group.rotation.z = Math.sin(time * 0.33) * 0.022 * fl;
-    rig.group.rotation.x = Math.sin(time * 0.27 + 1.1) * 0.018 * fl;
+    rig.group.position.y = REST_Y + Math.sin(time * 0.5) * 0.045 * fl;
 
     focus += (focusTarget - focus) * (1 - Math.exp(-6 * dt));
     rig.group.position.z = focus * camDist * 0.13;
@@ -405,7 +358,7 @@ export function createScene(
     rig.halo.material.opacity = 0.5 + breathe * 0.12 + boost * 0.26;
     rig.halo.scale.setScalar(8.2 + breathe * 0.35 + boost * 0.9);
     rig.goldPoint.intensity = 5.0 + breathe * 2.0 + boost * 4.2;
-    sky.material.uniforms.uBoost.value = boost * 0.85;
+    stage.bokehMaterial.uniforms.uBoost.value = boost * 0.85;
     rig.moteMaterial.uniforms.uBoost.value = boost;
 
     for (let i = 0; i < 6; i++) {
@@ -427,48 +380,35 @@ export function createScene(
         0.85 + (currentFace === MESSAGE_FACE_INDEX ? 0.33 : 0) + boost * 0.3;
     }
 
-    sky.galaxy.rotation.y += dt * 0.0042;
-    parallaxX *= Math.pow(0.9, dt * 60);
-    parallaxY *= Math.pow(0.9, dt * 60);
-    sky.stars.position.set(parallaxX * 5.5, -parallaxY * 5.5, 0);
-    sky.galaxy.position.set(
-      sky.galaxyHome.x + parallaxX * 9,
-      sky.galaxyHome.y - parallaxY * 9,
-      sky.galaxyHome.z
-    );
+    // the stage breathes with the drag: bokeh and the pool of light shift a
+    // little and settle back, so the object never feels stuck to the backdrop
+    parallax *= Math.pow(0.9, dt * 60);
+    stage.group.position.x = parallax * 1.4;
+    (stage.glowPool.material as THREE.MeshBasicMaterial).opacity =
+      0.72 + breathe * 0.16 + boost * 0.3;
 
-    sky.material.uniforms.uTime.value = time;
-    rig.moteMaterial.uniforms.uTime.value = time;
-
-    if (!reduced) {
-      nextShoot -= dt;
-      if (nextShoot <= 0) {
-        sky.fireShooter();
-        nextShoot = 5 + Math.random() * 7;
+    if (stage.bokeh.visible) {
+      const pa = stage.bokeh.geometry.getAttribute("position") as THREE.BufferAttribute;
+      const arr = pa.array as Float32Array;
+      for (let i = 0; i < arr.length; i += 3) {
+        const ph = i * 0.21;
+        arr[i] = stage.bokehHome[i] + Math.sin(time * 0.16 + ph) * 0.5 * fl;
+        arr[i + 1] = stage.bokehHome[i + 1] + ((time * 0.16 + ph) % 6) * fl * 0.4;
+        arr[i + 2] = stage.bokehHome[i + 2] + Math.cos(time * 0.13 + ph) * 0.4 * fl;
       }
-      for (const s of sky.shooters) {
-        if (s.life <= 0) continue;
-        s.t += dt;
-        const p = s.t / s.life;
-        if (p >= 1) {
-          s.life = 0;
-          s.sprite.visible = false;
-          s.sprite.material.opacity = 0;
-          continue;
-        }
-        s.sprite.position.x += s.vx * dt;
-        s.sprite.position.y += s.vy * dt;
-        s.sprite.material.opacity = Math.sin(p * Math.PI) * 0.85;
-      }
+      pa.needsUpdate = true;
     }
+
+    stage.bokehMaterial.uniforms.uTime.value = time;
+    rig.moteMaterial.uniforms.uTime.value = time;
 
     // the camera drifts on a slow sine but never rotates with the cube
     camera.position.set(
-      reduced ? 0 : Math.sin(time * 0.11) * 0.16,
-      reduced ? 0 : Math.cos(time * 0.083) * 0.11,
+      reduced ? 0 : Math.sin(time * 0.11) * 0.1,
+      REST_Y + 0.42 + (reduced ? 0 : Math.cos(time * 0.083) * 0.05),
       camDist
     );
-    camera.lookAt(0, 0, 0);
+    camera.lookAt(0, REST_Y - 0.24, 0);
 
     if (usePost) composer.render(dt);
     else renderer.render(scene, camera);
