@@ -136,12 +136,15 @@ export function createStage(dpr: number, reduced: boolean, envMap: THREE.Texture
     envMap,
     envMapIntensity: 1.3,
   });
+  /* The rim sits directly under the object's bottom edge, so a mirror finish on
+     it reads as part of the object's border rather than as the plinth. Rougher
+     and dimmer: still gold, no longer a lit line under the frame. */
   const rimMat = new THREE.MeshStandardMaterial({
-    color: 0xe8bf85,
+    color: 0xbf9d70,
     metalness: 1.0,
-    roughness: 0.2,
+    roughness: 0.38,
     envMap,
-    envMapIntensity: 2.1,
+    envMapIntensity: 0.95,
   });
   const body = new THREE.Mesh(new THREE.CylinderGeometry(1.34, 1.44, 0.32, 64), bodyMat);
   body.position.y = FLOOR_Y + 0.17;
@@ -198,13 +201,16 @@ export function createStage(dpr: number, reduced: boolean, envMap: THREE.Texture
   // Pushed up from where it sat while the object lit itself. The key is what
   // rakes the gold armature now, and the kicker is the only thing drawing a
   // cool edge down the far side of the object.
+  // There is no bounce lamp on the floor any more. It sat at y = FLOOR_Y + 0.1,
+  // a few centimetres under the object with quadratic decay, so it hit the
+  // bottom rail far harder than anything else in the scene and lit a bright bar
+  // across the join between object and plinth. The floor still reads as lit —
+  // the pool and the spill are painted, not lit, so they never needed it.
   const key = new THREE.DirectionalLight(0xffe3bd, 1.18);
   key.position.set(2.2, 6.2, 4.4);
   const kick = new THREE.DirectionalLight(0x9a7dff, 0.58);
   kick.position.set(-4.6, 2.2, -4.2);
-  const bounce = new THREE.PointLight(0xff9a6a, 4.8, 16, 2);
-  bounce.position.set(0, FLOOR_Y + 0.1, 1.4);
-  const amb = new THREE.AmbientLight(0x59456e, 0.52);
+  const amb = new THREE.AmbientLight(0x59456e, 0.58);
 
-  return { group, bokeh, bokehMaterial, bokehHome, glowPool, smear, lights: [key, kick, bounce, amb] };
+  return { group, bokeh, bokehMaterial, bokehHome, glowPool, smear, lights: [key, kick, amb] };
 }

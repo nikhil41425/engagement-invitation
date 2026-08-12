@@ -188,8 +188,10 @@ export function createCube(envMap: THREE.Texture, dpr: number): CubeRig {
   key.position.set(3.4, 4.2, 4.0);
   const rim = new THREE.DirectionalLight(0x7fa0ff, 0.62);
   rim.position.set(-4.2, 1.4, -3.6);
-  const fill = new THREE.PointLight(0xd06bb0, 5.0, 16, 2);
-  fill.position.set(-1.2, -3.2, 1.4);
+  /* pulled well back and down to a fraction of its old strength: from close in
+     it was a second underlight, picking out the bottom rail from the other side */
+  const fill = new THREE.PointLight(0xd06bb0, 1.9, 16, 2);
+  fill.position.set(-2.4, -3.8, 2.2);
   const amb = new THREE.AmbientLight(0x6a648c, 0.42);
 
   return {
