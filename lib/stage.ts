@@ -89,6 +89,61 @@ function backdrop(): THREE.Mesh {
   return mesh;
 }
 
+/**
+ * The band around the plinth: two hairline rules and a ring of the same diamond
+ * ornament the panels use, tiled once around the circumference.
+ *
+ * It is albedo only — no emissive term, nothing that lights itself. On metal at
+ * this metalness the map tints what the surface reflects, so the ornament reads
+ * as polished gold inlay catching the key light while the ground between stays
+ * dark. Sized 2048 x 64 because that is very nearly square once wrapped: the
+ * body is about 8.8 units around and 0.32 tall, so an evenly-dense band is far
+ * wider than it is high.
+ */
+function plinthBand(): THREE.Texture {
+  const w = 2048;
+  const h = 64;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const x = c.getContext("2d")!;
+
+  x.fillStyle = "#17121f";
+  x.fillRect(0, 0, w, h);
+
+  /* a hairline rule top and bottom, framing the band */
+  x.fillStyle = "rgba(214,178,124,.55)";
+  x.fillRect(0, 7, w, 2);
+  x.fillRect(0, h - 9, w, 2);
+
+  /* and a ring of diamonds, each with a tapering dash reaching to the next */
+  const REPEATS = 18;
+  const step = w / REPEATS;
+  const cy = h / 2;
+  for (let i = 0; i < REPEATS; i++) {
+    const cx = i * step + step / 2;
+
+    const g = x.createLinearGradient(cx + 9, 0, cx + step - 9, 0);
+    g.addColorStop(0, "rgba(206,170,116,.42)");
+    g.addColorStop(0.5, "rgba(206,170,116,.13)");
+    g.addColorStop(1, "rgba(206,170,116,.42)");
+    x.fillStyle = g;
+    x.fillRect(cx + 9, cy - 1, step - 18, 1.6);
+
+    x.save();
+    x.translate(cx, cy);
+    x.rotate(Math.PI / 4);
+    x.fillStyle = "rgba(236,204,150,.9)";
+    x.fillRect(-5, -5, 10, 10);
+    x.restore();
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  return tex;
+}
+
 export function createStage(dpr: number, reduced: boolean, envMap: THREE.Texture): Stage {
   const group = new THREE.Group();
   group.add(backdrop());
@@ -129,8 +184,10 @@ export function createStage(dpr: number, reduced: boolean, envMap: THREE.Texture
 
   // ---- plinth ----
   const plinth = new THREE.Group();
+  /* the band carries the body's colour now, so the material's own is white */
   const bodyMat = new THREE.MeshStandardMaterial({
-    color: 0x1a1426,
+    color: 0xffffff,
+    map: plinthBand(),
     metalness: 0.82,
     roughness: 0.3,
     envMap,
