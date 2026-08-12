@@ -316,31 +316,34 @@
     return g;
   }
 
+  /* every helper below takes 1024-grid coordinates and scales to the texture */
   function rule(ctx, cx, y, w, alpha) {
+    cx *= U; y *= U; w *= U;
     var g = ctx.createLinearGradient(cx - w / 2, 0, cx + w / 2, 0);
     g.addColorStop(0, "rgba(238,201,138,0)");
     g.addColorStop(0.5, "rgba(238,201,138," + (alpha || 0.62) + ")");
     g.addColorStop(1, "rgba(238,201,138,0)");
     ctx.fillStyle = g;
-    ctx.fillRect(cx - w / 2, y, w, 1.6);
+    ctx.fillRect(cx - w / 2, y, w, 1.5 * U);
   }
 
   function diamond(ctx, cx, cy, r, alpha) {
     ctx.save();
-    ctx.translate(cx, cy);
+    ctx.translate(cx * U, cy * U);
     ctx.rotate(Math.PI / 4);
     ctx.fillStyle = "rgba(238,201,138," + (alpha || 0.8) + ")";
-    ctx.fillRect(-r, -r, r * 2, r * 2);
+    ctx.fillRect(-r * U, -r * U, r * 2 * U, r * 2 * U);
     ctx.restore();
   }
 
   function ornamentRule(ctx, cx, y, w) {
-    rule(ctx, cx - w / 4 - 14, y, w / 2, 0.55);
-    rule(ctx, cx + w / 4 + 14, y, w / 2, 0.55);
-    glow(ctx, "rgba(238,201,138,.8)", 14, function () { diamond(ctx, cx, y + 0.8, 4.5, 0.9); });
+    rule(ctx, cx - w / 4 - 16, y, w / 2, 0.5);
+    rule(ctx, cx + w / 4 + 16, y, w / 2, 0.5);
+    glow(ctx, "rgba(238,201,138,.75)", 10 * U, function () { diamond(ctx, cx, y + 1, 4, 0.92); });
   }
 
   function sparkle(ctx, cx, cy, r, alpha) {
+    cx *= U; cy *= U; r *= U;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.fillStyle = "rgba(255,240,210," + (alpha === undefined ? 0.95 : alpha) + ")";
@@ -362,9 +365,16 @@
   /* ============================================================
      2.  Face artwork — one shared construction
      ============================================================ */
-  var S = 1024;                 /* texture size            */
-  var RIM = 78;                 /* metallic gold rim band  */
-  var INSET = 104;              /* hairline frame inset    */
+  /* Layout is authored on a 1024 grid and drawn at TEX; U converts between them,
+     so the panels can be rendered at a higher resolution without moving anything.
+     A settled face covers roughly 600 device px, so 1536 texels keep the type
+     supersampled rather than mip-blurred. */
+  var GRID = 1024;
+  var TEX = (window.devicePixelRatio || 1) >= 2 ? 1536 : 1024;
+  var U = TEX / GRID;
+  var S = TEX;
+  var RIM = 78 * U;             /* metallic gold rim band  */
+  var INSET = 104 * U;          /* hairline frame inset    */
 
   var ACCENT = {
     wine:   [126, 26, 52],
@@ -375,6 +385,7 @@
 
   function panelBase(ctx, accent, poolY, poolW, poolH) {
     var a = ACCENT[accent] || ACCENT.violet;
+    poolY *= U; poolW *= U; poolH *= U;
 
     /* 1. ink-black base */
     ctx.fillStyle = INK;
@@ -411,8 +422,9 @@
     ctx.fillRect(0, 0, S, S);
   }
 
+  /* 4 + 5. a machined gold rim: bright chamfer at the physical edge, gold body,
+     a dark reveal where the metal steps down, then one hairline frame inside */
   function panelEdges(ctx) {
-    /* 4. metallic gold rim on all four edges, fading inward */
     var sides = [
       [0, 0, S, RIM, 0, 0, 0, RIM],
       [0, S - RIM, S, RIM, 0, S, 0, S - RIM],
@@ -422,22 +434,26 @@
     for (var i = 0; i < sides.length; i++) {
       var s = sides[i];
       var g = ctx.createLinearGradient(s[4], s[5], s[6], s[7]);
-      g.addColorStop(0.00, "rgba(252,236,206,.90)");
-      g.addColorStop(0.16, "rgba(226,186,124,.72)");
-      g.addColorStop(0.34, "rgba(160,120,66,.40)");
-      g.addColorStop(0.62, "rgba(112,80,42,.16)");
-      g.addColorStop(1.00, "rgba(80,58,30,0)");
+      g.addColorStop(0.00, "rgba(255,247,228,.92)");   /* the chamfer catches light */
+      g.addColorStop(0.05, "rgba(228,190,130,.66)");
+      g.addColorStop(0.14, "rgba(146,108,60,.44)");
+      g.addColorStop(0.34, "rgba(74,54,32,.30)");
+      g.addColorStop(0.58, "rgba(120,90,52,.22)");     /* faint second facet */
+      g.addColorStop(0.80, "rgba(34,25,18,.22)");
+      g.addColorStop(0.93, "rgba(10,8,16,.60)");       /* the reveal / shadow gap */
+      g.addColorStop(1.00, "rgba(8,6,14,.20)");
       ctx.fillStyle = g;
       ctx.fillRect(s[0], s[1], s[2], s[3]);
     }
-    /* 5. one hairline gold frame */
-    ctx.strokeStyle = "rgba(238,201,138,.42)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(INSET, INSET, S - INSET * 2, S - INSET * 2);
+    /* one hairline gold frame, drawn on a half-texel so it stays a clean line */
+    var o = Math.round(INSET) + 0.5;
+    ctx.strokeStyle = "rgba(232,196,136,.5)";
+    ctx.lineWidth = Math.max(1, Math.round(1.4 * U));
+    ctx.strokeRect(o, o, S - o * 2, S - o * 2);
   }
 
-  /* nothing may reach the hairline frame */
-  var MAXW = S - INSET * 2 - 56;
+  /* nothing may reach the hairline frame (1024-grid units) */
+  var MAXW = GRID - 104 * 2 - 52;
 
   function measureTracked(ctx, text, spacing) {
     var chars = String(text).split("");
@@ -449,7 +465,7 @@
   /* shrink size and spacing together until the line fits inside the frame */
   function fit(ctx, text, spacing, size, fontFn, maxW) {
     ctx.font = fontFn(size);
-    var w = measureTracked(ctx, text, spacing);
+    var w = measureTracked(ctx, text, spacing) / U;   /* compare in grid units */
     var lim = maxW || MAXW;
     if (w > lim) {
       var k = lim / w;
@@ -460,38 +476,68 @@
     return { size: size, spacing: spacing };
   }
 
-  function title(ctx, text, y) {
-    var f = fit(ctx, text, 15, 40, function (s) { return "500 " + s + "px Cinzel, Georgia, serif"; });
-    ctx.fillStyle = GOLD;
-    ctx.textBaseline = "alphabetic";
-    glow(ctx, "rgba(238,201,138,.55)", 26, function () { tracked(ctx, text, S / 2, y, f.spacing); });
+  /* Draw a blurred pass for the glow, then a crisp pass on top: the halo never
+     touches the glyph edges, so the type stays sharp instead of hazy. */
+  function ink(ctx, text, y, spacing, fill, glowColor, blur) {
+    y *= U;
+    if (glowColor && blur) {
+      ctx.save();
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = blur * U;
+      ctx.fillStyle = fill;
+      tracked(ctx, text, S / 2, y, spacing);
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = fill;
+    tracked(ctx, text, S / 2, y, spacing);
+    ctx.restore();
   }
 
+  var CINZEL = function (w) {
+    return function (s) { return w + " " + (s * U) + "px Cinzel, Georgia, serif"; };
+  };
+  var CORMORANT = function (w, italic) {
+    return function (s) {
+      return (italic ? "italic " : "") + w + " " + (s * U) + "px 'Cormorant Garamond', Georgia, serif";
+    };
+  };
+
+  /* small caps eyebrow above each block */
+  function title(ctx, text, y, size) {
+    var f = fit(ctx, text, 9, size || 42, CINZEL("500"));
+    ctx.textBaseline = "alphabetic";
+    ink(ctx, text, y, f.spacing * U, GOLD, "rgba(238,201,138,.45)", 12);
+  }
+
+  /* bright light-to-gold gradient type on near-black */
   function nameLine(ctx, text, y, size, spacing, weight) {
-    var w = weight || "600 ";
-    var f = fit(ctx, text, spacing === undefined ? size * 0.1 : spacing, size,
-      function (s) { return w + s + "px Cinzel, Georgia, serif"; });
-    ctx.fillStyle = goldGrad(ctx, y, f.size);
-    glow(ctx, "rgba(238,201,138,.34)", 22, function () { tracked(ctx, text, S / 2, y, f.spacing); });
+    var f = fit(ctx, text, spacing === undefined ? size * 0.09 : spacing, size, CINZEL(weight || "600"));
+    ink(ctx, text, y, f.spacing * U, goldGrad(ctx, y * U, f.size * U), "rgba(238,201,138,.28)", 14);
   }
 
   function bodyLine(ctx, text, y, size, italic, alpha) {
-    var sz = size || 33;
-    var f = fit(ctx, text, sz * 0.035, sz,
-      function (s) { return (italic ? "italic " : "") + "400 " + s + "px 'Cormorant Garamond', Georgia, serif"; },
-      S - INSET * 2 - 26);
-    ctx.fillStyle = "rgba(240,232,219," + (alpha === undefined ? 0.86 : alpha) + ")";
-    tracked(ctx, text, S / 2, y, f.spacing);
+    var sz = size || 44;
+    var f = fit(ctx, text, sz * 0.03, sz, CORMORANT("400", italic), GRID - 104 * 2 - 58);
+    ink(ctx, text, y, f.spacing * U, "rgba(244,238,228," + (alpha === undefined ? 0.94 : alpha) + ")", null, 0);
   }
 
-  /* ---- pill on the venue face (uv rect is reused for the hit test) ---- */
-  var PILL = { x: 297, y: 744, w: 430, h: 96, r: 48 };
-  PILL.u0 = PILL.x / S;
-  PILL.u1 = (PILL.x + PILL.w) / S;
-  PILL.v0 = 1 - (PILL.y + PILL.h) / S;
-  PILL.v1 = 1 - PILL.y / S;
+  /* a plain Cinzel line (dates, times) */
+  function capLine(ctx, text, y, size, spacing, color, weight, blur) {
+    var f = fit(ctx, text, spacing, size, CINZEL(weight || "400"));
+    ink(ctx, text, y, f.spacing * U, color, blur ? "rgba(238,201,138,.34)" : null, blur || 0);
+  }
+
+  /* ---- pill on the venue face (grid units; the uv rect drives the hit test) ---- */
+  var PILL = { x: 288, y: 726, w: 448, h: 104, r: 52 };
+  PILL.u0 = PILL.x / GRID;
+  PILL.u1 = (PILL.x + PILL.w) / GRID;
+  PILL.v0 = 1 - (PILL.y + PILL.h) / GRID;
+  PILL.v1 = 1 - PILL.y / GRID;
 
   function roundRect(ctx, x, y, w, h, r) {
+    x *= U; y *= U; w *= U; h *= U; r *= U;
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -501,116 +547,109 @@
     ctx.closePath();
   }
 
-  /* ---------- the six faces ---------- */
+  /* ---------- the six faces (all coordinates on the 1024 grid) ---------- */
+  var C_GOLD = "rgba(238,201,138,.92)";
+  var C_WARM = "rgba(248,229,192,.96)";
+
+  /* the decorative ampersand / connective word, in italic Cormorant */
+  function scriptLine(ctx, text, y, size, color, blur) {
+    fit(ctx, text, 0, size, CORMORANT("300", true));
+    ink(ctx, text, y, 0, color, blur ? "rgba(238,201,138,.4)" : null, blur || 0);
+  }
+
   function faceWelcome() {
     var c = cv(S), ctx = c.getContext("2d");
-    panelBase(ctx, "wine", 470, 420, 330);
-    ornamentRule(ctx, S / 2, 268, 300);
-    nameLine(ctx, "NIKHIL", 400, 104, 13);
-    ctx.font = "italic 300 62px 'Cormorant Garamond', Georgia, serif";
-    ctx.fillStyle = "rgba(238,201,138,.82)";
-    glow(ctx, "rgba(238,201,138,.5)", 20, function () { tracked(ctx, "&", S / 2, 486, 0); });
-    nameLine(ctx, "SRAVANTHI", 590, 104, 13);
-    rule(ctx, S / 2, 654, 300, 0.5);
-    title(ctx, "ENGAGEMENT CEREMONY", 726);
-    bodyLine(ctx, "Swipe to explore", 796, 33, false, 0.62);
-    ctx.font = "400 36px Cinzel, Georgia, serif";
-    ctx.fillStyle = "rgba(238,201,138,.9)";
-    glow(ctx, "rgba(238,201,138,.4)", 18, function () { tracked(ctx, "30 • 08 • 2026", S / 2, 872, 8); });
+    panelBase(ctx, "wine", 452, 430, 340);
+    ornamentRule(ctx, GRID / 2, 250, 300);
+    nameLine(ctx, "NIKHIL", 392, 116, 12);
+    scriptLine(ctx, "&", 470, 62, "rgba(238,201,138,.82)", 10);
+    nameLine(ctx, "SRAVANTHI", 570, 116, 12);
+    rule(ctx, GRID / 2, 632, 300, 0.45);
+    title(ctx, "ENGAGEMENT CEREMONY", 700);
+    bodyLine(ctx, "Swipe to explore", 772, 42, false, 0.66);
+    capLine(ctx, "30 • 08 • 2026", 856, 46, 7, C_GOLD, "400", 12);
     panelEdges(ctx);
     return c;
   }
 
   function faceCouple() {
     var c = cv(S), ctx = c.getContext("2d");
-    panelBase(ctx, "violet", 512, 400, 340);
-    title(ctx, "THE COUPLE", 262);
-    nameLine(ctx, "Nikhil", 392, 78, 6, "500 ");
-    bodyLine(ctx, "S/o Are Srinivas & Manjula", 456, 32, false, 0.84);
-    rule(ctx, 330, 526, 210, 0.42);
-    rule(ctx, 694, 526, 210, 0.42);
-    ctx.font = "italic 300 60px 'Cormorant Garamond', Georgia, serif";
-    ctx.fillStyle = "rgba(238,201,138,.85)";
-    glow(ctx, "rgba(238,201,138,.45)", 18, function () { tracked(ctx, "&", S / 2, 548, 0); });
-    nameLine(ctx, "Sravanthi", 656, 78, 6, "500 ");
-    bodyLine(ctx, "D/o Pandula Narsimha & Madhavi", 720, 32, false, 0.84);
-    sparkle(ctx, S / 2, 812, 26, 0.95);
+    panelBase(ctx, "violet", 512, 420, 350);
+    title(ctx, "THE COUPLE", 244);
+    nameLine(ctx, "Nikhil", 384, 92, 5, "500");
+    bodyLine(ctx, "S/o Are Srinivas & Manjula", 450, 42, false, 0.9);
+    rule(ctx, 322, 534, 210, 0.38);
+    rule(ctx, 702, 534, 210, 0.38);
+    scriptLine(ctx, "&", 556, 66, "rgba(238,201,138,.84)", 10);
+    nameLine(ctx, "Sravanthi", 672, 92, 5, "500");
+    bodyLine(ctx, "D/o Pandula Narsimha & Madhavi", 738, 42, false, 0.9);
+    sparkle(ctx, GRID / 2, 832, 24, 0.9);
     panelEdges(ctx);
     return c;
   }
 
   function faceDate() {
     var c = cv(S), ctx = c.getContext("2d");
-    panelBase(ctx, "indigo", 470, 400, 350);
-    title(ctx, "SAVE THE DATE", 254);
-    ctx.font = "400 210px Cinzel, Georgia, serif";
-    ctx.fillStyle = goldGrad(ctx, 500, 210);
-    glow(ctx, "rgba(238,201,138,.4)", 40, function () { tracked(ctx, "30", S / 2, 500, 6); });
-    rule(ctx, 246, 432, 168, 0.55);
-    rule(ctx, 778, 432, 168, 0.55);
-    ctx.font = "500 54px Cinzel, Georgia, serif";
-    ctx.fillStyle = "rgba(246,223,178,.96)";
-    glow(ctx, "rgba(238,201,138,.42)", 22, function () { tracked(ctx, "AUGUST", S / 2, 590, 18); });
-    ctx.font = "400 44px Cinzel, Georgia, serif";
-    ctx.fillStyle = "rgba(238,201,138,.85)";
-    tracked(ctx, "2026", S / 2, 656, 16);
-    rule(ctx, S / 2, 706, 280, 0.5);
-    ctx.font = "500 40px Cinzel, Georgia, serif";
-    ctx.fillStyle = "rgba(246,223,178,.95)";
-    glow(ctx, "rgba(238,201,138,.35)", 18, function () { tracked(ctx, "SUNDAY", S / 2, 774, 16); });
-    bodyLine(ctx, "11:00 AM onwards", 838, 33);
+    panelBase(ctx, "indigo", 476, 420, 360);
+    title(ctx, "SAVE THE DATE", 240);
+    /* the engraved plate: one very large numeral flanked by short rules */
+    var f30 = fit(ctx, "30", 6, 236, CINZEL("400"));
+    ink(ctx, "30", 512, f30.spacing * U, goldGrad(ctx, 512 * U, 236 * U), "rgba(238,201,138,.32)", 26);
+    rule(ctx, 236, 442, 172, 0.5);
+    rule(ctx, 788, 442, 172, 0.5);
+    capLine(ctx, "AUGUST", 606, 64, 16, C_WARM, "500", 12);
+    capLine(ctx, "2026", 676, 52, 15, "rgba(238,201,138,.86)", "400", 0);
+    rule(ctx, GRID / 2, 724, 280, 0.45);
+    capLine(ctx, "SUNDAY", 790, 50, 15, C_WARM, "500", 10);
+    capLine(ctx, "11:00 AM onwards", 858, 42, 3, "rgba(244,238,228,.94)", "400", 0);
     panelEdges(ctx);
     return c;
   }
 
   function faceFamilies() {
     var c = cv(S), ctx = c.getContext("2d");
-    panelBase(ctx, "plum", 512, 400, 350);
-    title(ctx, "WITH THE BLESSINGS", 256);
-    title(ctx, "OF OUR FAMILIES", 318);
-    rule(ctx, S / 2, 376, 330, 0.5);
-    nameLine(ctx, "Nikhil", 466, 74, 6, "500 ");
-    bodyLine(ctx, "S/o Are Srinivas & Manjula", 528, 31, false, 0.84);
-    rule(ctx, 318, 592, 200, 0.4);
-    rule(ctx, 706, 592, 200, 0.4);
-    ctx.font = "italic 300 42px 'Cormorant Garamond', Georgia, serif";
-    ctx.fillStyle = "rgba(238,201,138,.8)";
-    tracked(ctx, "and", S / 2, 606, 3);
-    nameLine(ctx, "Sravanthi", 696, 74, 6, "500 ");
-    bodyLine(ctx, "D/o Pandula Narsimha & Madhavi", 758, 31, false, 0.84);
-    rule(ctx, S / 2, 812, 330, 0.5);
+    panelBase(ctx, "plum", 512, 420, 360);
+    title(ctx, "WITH THE BLESSINGS", 236);
+    title(ctx, "OF OUR FAMILIES", 296);
+    rule(ctx, GRID / 2, 348, 330, 0.45);
+    nameLine(ctx, "Nikhil", 452, 86, 5, "500");
+    bodyLine(ctx, "S/o Are Srinivas & Manjula", 514, 40, false, 0.9);
+    rule(ctx, 316, 592, 200, 0.36);
+    rule(ctx, 708, 592, 200, 0.36);
+    scriptLine(ctx, "and", 606, 46, "rgba(238,201,138,.82)", 0);
+    nameLine(ctx, "Sravanthi", 706, 86, 5, "500");
+    bodyLine(ctx, "D/o Pandula Narsimha & Madhavi", 768, 40, false, 0.9);
+    rule(ctx, GRID / 2, 830, 330, 0.45);
     panelEdges(ctx);
     return c;
   }
 
   function faceVenue() {
     var c = cv(S), ctx = c.getContext("2d");
-    panelBase(ctx, "indigo", 500, 410, 350);
-    title(ctx, "THE VENUE", 250);
-    nameLine(ctx, "NBR CONVENTION", 372, 68, 9);
-    ctx.font = "400 34px Cinzel, Georgia, serif";
-    ctx.fillStyle = "rgba(238,201,138,.78)";
-    tracked(ctx, "A / C", S / 2, 432, 14);
-    rule(ctx, S / 2, 480, 260, 0.45);
-    bodyLine(ctx, "8H67+7RX, Main Road, Nagarjuna Sagar Rd,", 556, 31);
-    bodyLine(ctx, "Sripuram, B.N Reddy Nagar,", 604, 31);
-    bodyLine(ctx, "Hyderabad, Telangana 500112", 652, 31);
+    panelBase(ctx, "indigo", 486, 430, 360);
+    title(ctx, "THE VENUE", 236);
+    nameLine(ctx, "NBR CONVENTION", 348, 80, 7);
+    capLine(ctx, "A / C", 412, 38, 13, "rgba(238,201,138,.8)", "400", 0);
+    rule(ctx, GRID / 2, 458, 260, 0.4);
+    bodyLine(ctx, "8H67+7RX, Main Road, Nagarjuna Sagar Rd,", 538, 43);
+    bodyLine(ctx, "Sripuram, B.N Reddy Nagar,", 592, 43);
+    bodyLine(ctx, "Hyderabad, Telangana 500112", 646, 43);
 
-    /* solid gold pill with dark text */
-    var pg = ctx.createLinearGradient(0, PILL.y, 0, PILL.y + PILL.h);
-    pg.addColorStop(0, "#fdf1d8");
-    pg.addColorStop(0.5, "#f2d8a4");
-    pg.addColorStop(1, "#dcb271");
+    /* solid gold pill with dark type — the one bright object on the cube */
+    var pg = ctx.createLinearGradient(0, PILL.y * U, 0, (PILL.y + PILL.h) * U);
+    pg.addColorStop(0, "#fff6e2");
+    pg.addColorStop(0.46, "#f4dcac");
+    pg.addColorStop(0.54, "#eccf98");
+    pg.addColorStop(1, "#d9ab68");
     ctx.save();
-    ctx.shadowColor = "rgba(238,201,138,.55)";
-    ctx.shadowBlur = 34;
+    ctx.shadowColor = "rgba(238,201,138,.42)";
+    ctx.shadowBlur = 26 * U;
     ctx.fillStyle = pg;
     roundRect(ctx, PILL.x, PILL.y, PILL.w, PILL.h, PILL.r);
     ctx.fill();
     ctx.restore();
-    ctx.font = "600 32px Cinzel, Georgia, serif";
-    ctx.fillStyle = "#1b1206";
-    tracked(ctx, "GET DIRECTIONS", S / 2, PILL.y + PILL.h / 2 + 11, 8);
+    var fp = fit(ctx, "GET DIRECTIONS", 8, 36, CINZEL("600"), PILL.w - 96);
+    ink(ctx, "GET DIRECTIONS", PILL.y + PILL.h / 2 + 13, fp.spacing * U, "#1a1105", null, 0);
 
     panelEdges(ctx);
     return c;
@@ -618,19 +657,17 @@
 
   function faceMessage() {
     var c = cv(S), ctx = c.getContext("2d");
-    panelBase(ctx, "wine", 480, 410, 340);
-    title(ctx, "A NEW CHAPTER BEGINS", 258);
+    panelBase(ctx, "wine", 470, 430, 350);
+    title(ctx, "A NEW CHAPTER BEGINS", 240);
 
-    var sp = [[206, 372, 12], [836, 408, 10], [174, 566, 8], [862, 596, 9], [242, 848, 10], [796, 862, 12]];
-    for (var i = 0; i < sp.length; i++) sparkle(ctx, sp[i][0], sp[i][1], sp[i][2], 0.62);
+    var sp = [[198, 356, 11], [842, 396, 9], [166, 560, 7], [870, 590, 8], [236, 852, 9], [802, 866, 11]];
+    for (var i = 0; i < sp.length; i++) sparkle(ctx, sp[i][0], sp[i][1], sp[i][2], 0.6);
 
-    bodyLine(ctx, "“We would be honored by your presence", 450, 38, true, 0.9);
-    bodyLine(ctx, "as we begin this beautiful chapter together.”", 508, 38, true, 0.9);
-    rule(ctx, S / 2, 596, 300, 0.5);
-    nameLine(ctx, "Nikhil & Sravanthi", 700, 62, 5, "500 ");
-    ctx.font = "400 34px Cinzel, Georgia, serif";
-    ctx.fillStyle = "rgba(238,201,138,.88)";
-    glow(ctx, "rgba(238,201,138,.35)", 16, function () { tracked(ctx, "30 • 08 • 2026", S / 2, 790, 8); });
+    bodyLine(ctx, "“We would be honored by your presence", 432, 47, true, 0.95);
+    bodyLine(ctx, "as we begin this beautiful chapter together.”", 494, 47, true, 0.95);
+    rule(ctx, GRID / 2, 576, 300, 0.45);
+    nameLine(ctx, "Nikhil & Sravanthi", 676, 74, 4, "500");
+    capLine(ctx, "30 • 08 • 2026", 774, 44, 7, C_GOLD, "400", 12);
     panelEdges(ctx);
     return c;
   }
@@ -966,30 +1003,50 @@
   cubeGroup.add(rotor);
   scene.add(cubeGroup);
 
-  /* small envMap from six gradient canvases (violet with a warm top) */
+  /* A small studio environment: violet room, warm ceiling, and two soft-box
+     bands so the gold has real streaked highlights to reflect rather than a flat wash. */
   var envFaces = [];
   for (var ei = 0; ei < 6; ei++) {
     var ec = cv(128), ex = ec.getContext("2d");
     var eg = ex.createLinearGradient(0, 0, 0, 128);
-    if (ei === 2) {           /* +Y : warm top */
-      eg.addColorStop(0, "#5b4526"); eg.addColorStop(1, "#2a1f3f");
-    } else if (ei === 3) {    /* -Y */
-      eg.addColorStop(0, "#160f24"); eg.addColorStop(1, "#0a0714");
-    } else {
-      eg.addColorStop(0, "#4a3a5f"); eg.addColorStop(0.45, "#291d3f"); eg.addColorStop(1, "#120c1e");
+    if (ei === 2) {                 /* +Y ceiling: the warm key */
+      eg.addColorStop(0, "#8a6a35"); eg.addColorStop(0.55, "#4c3a48"); eg.addColorStop(1, "#241a38");
+    } else if (ei === 3) {          /* -Y floor: magenta bounce, kept dark */
+      eg.addColorStop(0, "#1d1028"); eg.addColorStop(1, "#080512");
+    } else {                        /* walls */
+      eg.addColorStop(0, "#6a5330"); eg.addColorStop(0.30, "#3b2c50");
+      eg.addColorStop(0.70, "#221838"); eg.addColorStop(1, "#0d0918");
     }
     ex.fillStyle = eg;
     ex.fillRect(0, 0, 128, 128);
-    var hg = ex.createRadialGradient(64, 22, 4, 64, 22, 74);
-    hg.addColorStop(0, "rgba(255,226,180,.55)");
-    hg.addColorStop(1, "rgba(255,226,180,0)");
-    ex.fillStyle = hg;
-    ex.fillRect(0, 0, 128, 128);
+
+    if (ei !== 3) {
+      /* soft-box strips */
+      var strips = ei === 2 ? [[10, 26, 0.95]] : [[22, 13, 0.72], [66, 7, 0.34]];
+      for (var st = 0; st < strips.length; st++) {
+        var sy = strips[st][0], sh2 = strips[st][1], sa = strips[st][2];
+        var sg = ex.createLinearGradient(0, sy - sh2, 0, sy + sh2);
+        sg.addColorStop(0, "rgba(255,238,208,0)");
+        sg.addColorStop(0.5, "rgba(255,242,216," + sa + ")");
+        sg.addColorStop(1, "rgba(255,238,208,0)");
+        ex.fillStyle = sg;
+        ex.fillRect(0, sy - sh2, 128, sh2 * 2);
+      }
+      /* a cool kicker from behind-left keeps the metal from going monochrome */
+      var kg = ex.createRadialGradient(18, 96, 2, 18, 96, 62);
+      kg.addColorStop(0, "rgba(150,178,255,.34)");
+      kg.addColorStop(1, "rgba(150,178,255,0)");
+      ex.fillStyle = kg;
+      ex.fillRect(0, 0, 128, 128);
+    }
     envFaces.push(ec);
   }
   var envMap = new THREE.CubeTexture(envFaces);
   envMap.needsUpdate = true;
   envMap.encoding = THREE.sRGBEncoding;
+  envMap.minFilter = THREE.LinearFilter;
+  envMap.magFilter = THREE.LinearFilter;
+  envMap.generateMipmaps = false;
 
   var faceTextures = [];
   var panelMats = [];
@@ -998,12 +1055,14 @@
       color: 0xffffff,
       roughness: 0.30,
       metalness: 0.10,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.14,
+      /* lacquer: a visible rake of light across the coat, but dialled back from
+         0.9 so the clearcoat lobe stops washing the ink black under the type */
+      clearcoat: 0.45,
+      clearcoatRoughness: 0.10,
       emissive: 0xffffff,
       emissiveIntensity: 0.30,
       envMap: envMap,
-      envMapIntensity: 0.10
+      envMapIntensity: 0.05
     });
     panelMats.push(m);
   }
@@ -1011,15 +1070,16 @@
   var cube = new THREE.Mesh(new THREE.BoxGeometry(1.98, 1.98, 1.98), panelMats);
   rotor.add(cube);
 
-  /* hairline gold armature: 12 rails + 8 corner spheres, matching radii */
-  var RAIL_R = 0.026, HALF = 0.99;
+  /* hairline gold armature: 12 rails + 8 corner spheres, matching radii.
+     Sitting a hair proud of the 1.98 panel gives the frame a real edge. */
+  var RAIL_R = 0.027, HALF = 1.0;
   var goldMat = new THREE.MeshStandardMaterial({
-    color: 0xf3d8a4, metalness: 1.0, roughness: 0.18,
-    emissive: 0x5c3f14, emissiveIntensity: 0.55,
-    envMap: envMap, envMapIntensity: 1.6
+    color: 0xffdca4, metalness: 1.0, roughness: 0.16,
+    emissive: 0x3a2707, emissiveIntensity: 0.34,
+    envMap: envMap, envMapIntensity: 2.3
   });
-  var railGeo = new THREE.CylinderGeometry(RAIL_R, RAIL_R, HALF * 2, 12, 1, false);
-  var cornGeo = new THREE.SphereGeometry(RAIL_R, 14, 10);
+  var railGeo = new THREE.CylinderGeometry(RAIL_R, RAIL_R, HALF * 2, 18, 1, false);
+  var cornGeo = new THREE.SphereGeometry(RAIL_R, 20, 14);
   var s1 = [-1, 1];
   var ax, a, b;
   for (ax = 0; ax < 3; ax++) {
@@ -1043,8 +1103,8 @@
   var glowBox = new THREE.Mesh(
     new THREE.BoxGeometry(2.12, 2.12, 2.12),
     new THREE.MeshBasicMaterial({
-      color: 0xc9a7ff, side: THREE.BackSide, transparent: true,
-      opacity: 0.11, blending: THREE.AdditiveBlending, depthWrite: false
+      color: 0xd9b6ff, side: THREE.BackSide, transparent: true,
+      opacity: 0.075, blending: THREE.AdditiveBlending, depthWrite: false
     })
   );
   rotor.add(glowBox);
@@ -1078,11 +1138,13 @@
   var moteBase = motes.geometry.getAttribute("position").array.slice(0);
 
   /* lighting */
-  var key = new THREE.DirectionalLight(0xffe6c2, 1.5); key.position.set(3.4, 4.2, 4.0);
-  var rim = new THREE.DirectionalLight(0x7fa0ff, 0.95); rim.position.set(-4.2, 1.4, -3.6);
-  var goldPoint = new THREE.PointLight(0xffcd82, 0.8, 20, 2); goldPoint.position.set(2.4, 2.8, 4.2);
-  var fill = new THREE.PointLight(0xd06bb0, 0.6, 16, 2); fill.position.set(-1.2, -3.2, 1.4);
-  var amb = new THREE.AmbientLight(0x6a648c, 0.85);
+  /* The panels carry their own light through the emissive map, so the lamps are
+     kept low: they exist to model the gold armature, not to wash the ink panels. */
+  var key = new THREE.DirectionalLight(0xffe6c2, 0.85); key.position.set(3.4, 4.2, 4.0);
+  var rim = new THREE.DirectionalLight(0x7fa0ff, 0.62); rim.position.set(-4.2, 1.4, -3.6);
+  var goldPoint = new THREE.PointLight(0xffcd82, 0.55, 20, 2); goldPoint.position.set(2.4, 2.8, 4.2);
+  var fill = new THREE.PointLight(0xd06bb0, 0.42, 16, 2); fill.position.set(-1.2, -3.2, 1.4);
+  var amb = new THREE.AmbientLight(0x6a648c, 0.42);
   scene.add(key, rim, goldPoint, fill, amb);
 
   /* ============================================================
@@ -1461,10 +1523,10 @@
     /* breathing inner light + reveal pulse */
     boost += (0 - boost) * (1 - Math.exp(-2.2 * dt));
     var breathe = 0.5 + 0.5 * Math.sin(time * 0.7);
-    glowBox.material.opacity = 0.085 + breathe * 0.05 + boost * 0.10;
+    glowBox.material.opacity = 0.055 + breathe * 0.03 + boost * 0.07;
     halo.material.opacity = 0.50 + breathe * 0.12 + boost * 0.26;
     halo.scale.setScalar(8.2 + breathe * 0.35 + boost * 0.9);
-    goldPoint.intensity = 0.7 + breathe * 0.25 + boost * 0.5;
+    goldPoint.intensity = 0.5 + breathe * 0.2 + boost * 0.42;
     starMat.uniforms.uBoost.value = boost * 0.85;
     moteMat.uniforms.uBoost.value = boost;
 
@@ -1558,7 +1620,10 @@
       var canvasFace = FACES[i].draw();
       var t = new THREE.CanvasTexture(canvasFace);
       t.encoding = THREE.sRGBEncoding;
-      t.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+      t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.magFilter = THREE.LinearFilter;
+      t.generateMipmaps = true;
       t.needsUpdate = true;
       faceTextures[FACES[i].slot] = t;
       panelMats[FACES[i].slot].map = t;
