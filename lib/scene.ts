@@ -306,35 +306,44 @@ export function createScene(
   canvas.addEventListener("pointercancel", onCancel);
 
   // ---- performance stepping ----
+  //
+  // Resolution is the last thing to give up, not the first. Dropping the pixel
+  // ratio softens the type, which is the one thing the whole piece exists to
+  // deliver — so effects go first, then particles, and only then resolution.
+  const FULL_DPR = dpr;
   let perfLevel = 0;
-  let frames = 0;
-  let perfT0 = performance.now();
-  function stepDown() {
-    perfLevel++;
-    if (perfLevel === 1) {
-      // The post pipeline is the first thing to go, then the dust. Bypass the
-      // composer wholesale rather than disabling its last pass — with no pass
-      // writing to the drawing buffer, nothing reaches the canvas at all.
-      usePost = false;
-      renderer.setClearColor(CLEAR, 1);
-      dpr = Math.min(dpr, 1.35);
-      renderer.setPixelRatio(dpr);
-      sky.material.uniforms.uSize.value = 3.2 * dpr;
-      rig.moteMaterial.uniforms.uSize.value = 3.0 * dpr;
-      sky.dust.visible = false;
-      layout();
-    } else if (perfLevel === 2) {
-      dpr = Math.min(dpr, 1.0);
-      renderer.setPixelRatio(dpr);
-      sky.material.uniforms.uSize.value = 3.2 * dpr;
-      sky.nearStars.visible = false;
-      rig.motes.visible = false;
-      layout();
+
+  function setPixelRatio(value: number) {
+    dpr = value;
+    renderer.setPixelRatio(dpr);
+    sky.material.uniforms.uSize.value = 3.2 * dpr;
+    rig.moteMaterial.uniforms.uSize.value = 3.0 * dpr;
+    layout();
+  }
+
+  function applyLevel(level: number) {
+    perfLevel = level;
+    // 1: no post   2: no loose particles   3: reduced resolution
+    const wantPost = level < 1;
+    if (wantPost !== usePost) {
+      usePost = wantPost;
+      // the composer needs its clear colour in linear space; the direct path does not
+      renderer.setClearColor(usePost ? CLEAR_LINEAR : CLEAR, 1);
     }
+    sky.dust.visible = level < 2;
+    sky.nearStars.visible = level < 2;
+    rig.motes.visible = level < 2;
+    const wantDpr = level >= 3 ? Math.min(FULL_DPR, 1.5) : FULL_DPR;
+    if (wantDpr !== dpr) setPixelRatio(wantDpr);
   }
 
   // ---- loop ----
   const clock = new THREE.Clock();
+  const bootedAt = performance.now();
+  let frames = 0;
+  let perfT0 = bootedAt;
+  let bad = 0;
+  let good = 0;
   const qOpen = new THREE.Quaternion();
   const eOpen = new THREE.Euler();
   let time = 0;
@@ -464,16 +473,38 @@ export function createScene(
     if (usePost) composer.render(dt);
     else renderer.render(scene, camera);
 
-    // Sample every 70 frames *or* every 1.5s, whichever lands first: a device
-    // running at 3fps would otherwise take half a minute to reach the check.
+    // Sample every 70 frames *or* every 1.5s, whichever lands first, so a
+    // device running at 3fps is rescued in a second rather than half a minute.
+    // The first few seconds are ignored: shader compilation, texture upload and
+    // font work all land there, and judging the device on that would strip the
+    // piece down permanently over a hitch that has already passed. Two bad
+    // samples are needed to step down, and a sustained good run steps back up.
     frames++;
     const now = performance.now();
     const elapsed = now - perfT0;
-    if (frames >= 70 || elapsed >= 1500) {
+    if (now - bootedAt < 3000) {
+      frames = 0;
+      perfT0 = now;
+    } else if (frames >= 70 || elapsed >= 1500) {
       const fps = (frames * 1000) / elapsed;
       frames = 0;
       perfT0 = now;
-      if (fps < 38 && perfLevel < 2) stepDown();
+      if (fps < 38) {
+        good = 0;
+        if (++bad >= 2 && perfLevel < 3) {
+          applyLevel(perfLevel + 1);
+          bad = 0;
+        }
+      } else if (fps > 54) {
+        bad = 0;
+        if (++good >= 4 && perfLevel > 0) {
+          applyLevel(perfLevel - 1);
+          good = 0;
+        }
+      } else {
+        bad = 0;
+        good = 0;
+      }
     }
   }
   tick();
